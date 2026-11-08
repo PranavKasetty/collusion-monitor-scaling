@@ -34,6 +34,10 @@ PLANS = {  # plan -> list of (shard name, scenario indices)
     "main": [(f"s{i:02d}", list(range(i, i + 10))) for i in range(0, 50, 10)],
     # test 3 pilots (8 Nov): honest-agent variety, scenarios 0-9, N = 8 only
     **{f"var_{v}": [("s00", list(range(10)))] for v in ("wording", "roles", "both")},
+    # test 3 at N = 16 (8 Nov evening): wording variety only, scenarios 0-19, where the v2 inversion is strongest
+    "var16_wording": [("s00", list(range(10))), ("s10", list(range(10, 20)))],
+    # NARCBench's own published Core transcripts (Qwen3-32B, N = 4), converted by import_narcbench.py; monitor only
+    "narcbench": [],
 }
 
 
@@ -50,10 +54,10 @@ def generate_shard(plan: str, shard: str, scenarios: list, max_usd: float, worke
            "--out", out, "--design", "interactive", "--sizes", "4", "8", "16",
            "--scenarios", *map(str, scenarios), "--modes", *(modes.split(",") if modes else ALL_MODES),
            "--max-usd", str(max_usd), "--workers", str(workers), "--run-name", f"crowd-{plan}-{shard}"]
-    if plan.startswith("var_"):  # test 3 pilot: N = 8 only, one variety per plan
+    if plan.startswith("var"):  # test 3: var_<variety> = N 8 pilot, var16_<variety> = N 16; one variety per plan
         i = cmd.index("--sizes")
-        cmd[i + 1:i + 4] = ["8"]
-        cmd += ["--variety", plan[4:]]
+        cmd[i + 1:i + 4] = ["16" if plan.startswith("var16_") else "8"]
+        cmd += ["--variety", plan.split("_", 1)[1]]
     with open(f"{out}/driver.log", "a", encoding="utf-8") as log:
         p = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, cwd="/root/crowd", env=env)
     runs.commit()

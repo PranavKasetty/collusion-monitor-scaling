@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Consensus Looks Like Collusion</title>
+<style>
+@page { size: A4; margin: 18mm 18mm 18mm 18mm; }
+body { font-family: "Georgia", "Times New Roman", serif; font-size: 10.5pt; line-height: 1.38; color: #111; background: #fff; }
+h1 { font-size: 17pt; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 12.5pt; margin: 16px 0 5px; }
+h3 { font-size: 10.8pt; margin: 11px 0 3px; }
+p { margin: 4px 0 7px; text-align: justify; }
+.meta { font-size: 10pt; margin-bottom: 10px; }
+.abstract { margin: 10px 0 12px; padding: 8px 12px; background: #f4f4f4; }
+.abstract p { margin: 3px 0; }
+table { border-collapse: collapse; margin: 6px auto 4px; font-size: 8.6pt; font-family: Arial, Helvetica, sans-serif; }
+th, td { border-top: 1px solid #bbb; border-bottom: 1px solid #bbb; padding: 2px 6px; text-align: center; }
+th { background: #eee; }
+td.l, th.l { text-align: left; }
+.cap { font-size: 8.8pt; margin: 2px 0 10px; text-align: left; }
+figure { margin: 8px 0; text-align: center; }
+figure img { width: 100%; }
+figcaption { font-size: 8.8pt; text-align: left; }
+ul, ol { margin: 3px 0 7px 18px; padding-left: 10px; }
+li { margin: 2px 0; }
+code { font-family: Consolas, monospace; font-size: 8.8pt; }
+.prompt { font-family: Consolas, monospace; font-size: 8.3pt; background: #f4f4f4; padding: 6px 9px; white-space: pre-wrap; margin: 4px 0 8px; }
+.pb { page-break-before: always; }
+.refs p { text-align: left; padding-left: 18px; text-indent: -18px; font-size: 9.5pt; }
+</style>
+</head>
+<body>
+
+<h1>Consensus Looks Like Collusion: What LLM Monitors Detect in Growing Agent Committees</h1>
+<div class="meta">
+Pranav Kasetty, Independent researcher<br>
+With Apart Research. Swarm Alignment Hackathon, 6 to 8 November 2026<br>
+Track: Multi-Agent Oversight and Control (Track 4)<br>
+Code: <code>github.com/PranavKasetty/collusion-monitor-scaling</code>
+</div>
+
+<div class="abstract">
+<p><b>Abstract.</b> Text monitors are the cheapest way to oversee groups of AI agents, yet collusion benchmarks test them on two to four agents. I asked how well a transcript monitor identifies colluders as the committee it reads grows. I extended NARCBench's 50 committee scenarios from 4 to 8 and 16 agents with honest bystanders and ran 900 interactive episodes with Gemma 4 31B agents, including sincere-dissent and lone-advocate controls. Zero-shot LLM monitors read unanimous honest committees as coordinated. With a standard monitor prompt, GLM-5.3-flash's own coalition answer ranks collusion below control (AUROC 0.23 to 0.44), and its colluder attribution falls from 0.81 at N = 4 to 0.36 at N = 16, below chance. Its notes point to near-identical wording, which is expected when every agent is the same model with the same briefing. One added sentence saying so raises detection to 0.67 to 0.76 and attribution to 0.68 to 0.87, and the same sentence works on NARCBench's own Qwen3-32B transcripts (0.49 to 0.76). It does not fix Gemma 4 26B as a monitor. After the fix, the monitor cannot tell colluders from lone advocates who received the colluder prompt with no partner (AUROC 0.44 to 0.55), and a behaviour check finds no trace of coordination in the public discussion. These monitors detect the colluder's brief, not coordination, and none beats counting votes for the target option (0.94). Multi-agent monitor benchmarks need same-model and style-matched controls.</p>
+</div>
+
+<h2>1. Introduction</h2>
+<p>Deployed agent systems increasingly put many agents in one conversation. If two of them coordinate in secret to steer a group decision, an overseer has to find them in a transcript that grows with every agent added. LLM monitors that read transcripts are cheap enough to run on every interaction, so they are the oversight most likely to be used at scale. The Swarm Alignment hackathon's oversight track asks whether a monitor that sees only part of the messages between agents can detect collusion, and whether control protocols still hold when the untrusted side is several agents that can coordinate. Most collusion benchmarks, NARCBench among them (Rose et al., 2026), use four agents.</p>
+<p>My research question was: <i>how does monitor performance at identifying colluders scale with the number of agents whose transcripts it reads?</i> I grew NARCBench committees to 8 and 16 agents and measured zero-shot monitors against two no-model baselines. The answer turned out to depend less on N than on what the monitors were reacting to. The paper reports three findings, each tested against a control I added during the sprint:</p>
+<ol>
+<li>Consensus looks like collusion. Monitors flag honest majorities, whose members share wording because they are copies of one model with one briefing. The error grows with N. One prompt sentence fixes it for GLM-5.3-flash, on my committees and on NARCBench's published transcripts, but not for Gemma 4 26B.</li>
+<li>After the fix, the monitor detects the colluder brief. Committees with lone advocates, who get the colluder prompt but no partner and no private channel, score as high as collusion committees, and colluders and advocates are indistinguishable.</li>
+<li>Coordination leaves no trace in the public text of these committees, and no LLM monitor beats a vote count that knows the target option.</li>
+</ol>
+<p>The practical point is about benchmark design. A collusion monitor can score well on a benchmark by detecting something other than collusion, and the controls that expose this are cheap: an all-honest committee from the same model, and a lone advocate given the same brief.</p>
+
+<h2>2. Related work</h2>
+<p><b>NARCBench.</b> Rose et al. (2026) introduced four-agent committees with two colluders across 50 scenarios, plus Transfer and steganography splits, and detected collusion with activation probes (AUROC 1.00 on Core, 0.80 to 0.84 on Transfer). Their appendix runs N = 8 for probes only, and their section on prompt confounds notes that residual prompt differences may contribute to probe accuracy. I reuse their scenarios and colluder prompts verbatim. What is new here: text monitors, committees up to 16 agents, sincere-dissent and lone-advocate controls, and monitors run on their published transcripts.</p>
+<p><b>AI control.</b> Greenblatt et al. (2023) frame monitoring as catching attacks under a limited audit budget, with trusted and untrusted monitors. I report the true-positive rate at a fixed false-flag rate in that spirit. UK AISI's ControlArena publishes default monitor prompts (reasoning before a 0 to 100 suspicion score, listed signs, a warning that benign actions can look suspicious). My monitor prompts follow that shape. All ControlArena monitors watch a single agent.</p>
+<p><b>Sprint talks.</b> Kemeklis (2026) argued that a single monitor's context grows unevenly with swarm size, so swarms may need per-agent monitors reporting to an aggregator. My screen-compare-confirm monitor is one version of that design. Shenk (2026) analysed who talks to whom in AI Village transcripts, which motivated my interaction baseline.</p>
+
+<h2>3. Setup</h2>
+<h3>3.1 Committees</h3>
+<p>Each episode keeps NARCBench's four-agent core (names, styles, option labels and prompts as published) and adds honest bystanders to reach N = 4, 8 or 16. In collusion episodes two core agents are colluders: they exchange private messages, then join three rounds of public discussion, then give a final recommendation. Everyone sees the full public discussion, and the speaking order is shuffled each round. A pilot showed that a design where the core never sees bystanders produces transcripts a checker model can recognise as spliced (3.78 of 4 core agents identified at N = 16, against 1.39 for the interactive design), so all runs are interactive. Agents are <code>gemma-4-31b-it</code> at temperature 0.7, NARCBench's default.</p>
+<p>Conditions, all over the 50 scenarios:</p>
+<ul>
+<li><i>collusion</i>: 2 colluders and honest agents; <i>control</i>: all honest.</li>
+<li><i>dissent</i>: the colluder seats hold sincere dissenters who argue for the same target with no motive, partner or private channel. <i>collusion+dissent</i> (N = 8, 16) has both.</li>
+<li><i>solo</i>: lone advocates get NARCBench's colluder system prompt verbatim, with the same motive and style, but no partner and no private channel. <i>collusion_solo</i> (N = 8, 16) puts 2 colluders and 2 advocates in one committee. This is the style-matched control.</li>
+</ul>
+<p>The main run has 550 episodes (collusion, control, dissent at every N, plus collusion+dissent), the advocate run 250, and the honest-variety tests 100 (Section 4.2).</p>
+
+<h3>3.2 Monitors and baselines</h3>
+<p>A monitor reads the case, the options, the public messages and the final recommendations. It never sees the private channel, and it is not told whether colluders exist or how many there are. The <b>whole monitor</b> makes one call per committee and returns a coalition probability ("is a coordinating group present") and a 0 to 100 suspicion score for each member, after up to five free-text notes. The <b>screen-compare-confirm</b> monitor makes one call per agent, ranks pairs locally, and confirms the top three pairs (N + 3 calls). Prompt versions: v2 is the main prompt (Appendix B); v4 adds one sentence about shared wording (Section 4.2). The main monitor is GLM-5.3-flash with low reasoning effort, one sample per view. Gemma 4 26B, a Qwen 27B model and Qwen3.5-397B were run on scenarios 0 to 9.</p>
+<p>Baselines use no model calls. <b>Stance</b> scores each agent 1 if its final recommendation names the target option, and a committee by how many agents do; it needs to know the target, which the monitors are not told. <b>Talks</b> scores pairs by how often they name each other. A <b>word-only classifier</b> (multinomial naive Bayes on each agent's own words, trained leave-one-scenario-out) measures how much role information the wording carries. It is supervised, so it is a probe of the data, not a fair monitor comparison.</p>
+
+<h3>3.3 Metrics and pre-registration</h3>
+<p>Detection AUROC is the chance that a random collusion committee scores above a random comparison committee. For LLM monitors I use two committee scores from the same output: <i>coalition</i>, the monitor's own answer, and <i>spread</i>, the mean of its top two agent scores minus the mean of the rest. Attribution is the per-agent AUROC of colluders against everyone else (chance 0.5 at every N). <i>dis_above</i> is the chance a dissenter or advocate outranks a colluder (chance 0.5; lower means colluders stand out). Intervals are 95% bootstraps over scenarios (1,000 resamples, seed 0). I wrote predictions in a results log before opening each set of scores, which stayed in sealed files until then (Table 3). The last four checks ran without predictions.</p>
+
+<h2>4. Results</h2>
+<h3>4.1 Monitors read consensus as collusion, and it gets worse with N</h3>
+<p>With the v2 prompt, the whole monitor's coalition answer ranks collusion committees <i>below</i> all-honest ones at every N (Table 1, Figure 1a). Attribution starts well above chance at N = 4 and falls below chance by N = 16 (Figure 1b): in large committees the monitor's most suspected agents are honest ones. The same outputs scored by spread separate collusion from control at 0.91 to 0.97, so the monitor does score the colluders differently; it just reads the larger, uniform group as the coordinated one. The inversion was not specific to GLM. On scenarios 0 to 9 the coalition answer of Gemma 4 26B scored 0.01, 0.04 and 0.36, and Qwen3.5-397B 0.18, 0.05 and 0.11, with attribution at 0.00 for both at N = 16. A prompt sentence saying that broad agreement is normal (v3) did not fix it.</p>
+
+<table>
+<tr><th class="l">GLM-5.3-flash, whole monitor</th><th>N</th><th>detection (coalition)</th><th>detection (spread)</th><th>attribution</th><th>exact pair (chance)</th></tr>
+<tr><td class="l">v2 prompt</td><td>4</td><td>0.23 [0.14, 0.33]</td><td>0.97 [0.94, 1.00]</td><td>0.81 [0.70, 0.91]</td><td>0.80 (0.167)</td></tr>
+<tr><td class="l"></td><td>8</td><td>0.41 [0.31, 0.51]</td><td>0.97 [0.94, 0.99]</td><td>0.52 [0.38, 0.66]</td><td>0.52 (0.036)</td></tr>
+<tr><td class="l"></td><td>16</td><td>0.44 [0.33, 0.54]</td><td>0.91 [0.85, 0.96]</td><td>0.36 [0.23, 0.49]</td><td>0.34 (0.008)</td></tr>
+<tr><td class="l">v4 prompt (+ shared-wording sentence)</td><td>4</td><td>0.69 [0.58, 0.79]</td><td>0.99 [0.97, 1.00]</td><td>0.87 [0.77, 0.95]</td><td>0.85 (0.167)</td></tr>
+<tr><td class="l"></td><td>8</td><td>0.67 [0.54, 0.79]</td><td>0.98 [0.96, 1.00]</td><td>0.68 [0.54, 0.80]</td><td>0.67 (0.036)</td></tr>
+<tr><td class="l"></td><td>16</td><td>0.76 [0.66, 0.86]</td><td>0.94 [0.89, 0.98]</td><td>0.69 [0.56, 0.82]</td><td>0.68 (0.008)</td></tr>
+<tr><td class="l">stance baseline (no model)</td><td>4 / 8 / 16</td><td>0.95 / 0.94 / 0.94</td><td></td><td>0.95 / 0.94 / 0.94</td><td>0.92 / 0.84 / 0.75</td></tr>
+</table>
+<p class="cap"><b>Table 1.</b> Collusion vs control detection and colluder attribution, all 50 scenarios (550 committees per prompt), interleaved transcript layout. 95% scenario-bootstrap intervals.</p>
+
+<figure><img src="fig1.png" alt="Two line charts against committee size 4, 8, 16. Left: detection AUROC; stance and v2 spread near 0.95, v4 coalition near 0.7, v2 coalition between 0.23 and 0.44. Right: attribution; stance near 0.95, v4 falls from 0.87 to 0.69, v2 falls from 0.81 to 0.36.">
+<figcaption><b>Figure 1.</b> GLM-5.3-flash whole monitor, 50 scenarios, with 95% bootstrap bands. The dotted line is chance. (a) The v2 coalition answer is below chance; the same outputs scored by spread are near the stance baseline. (b) v2 attribution falls below chance at N = 16; v4 holds near 0.7.</figcaption></figure>
+
+<h3>4.2 The cause is shared wording, and one sentence fixes it for one monitor</h3>
+<p>I hand-coded a sample of the monitor's notes on honest committees. The monitor's stated reason for flagging the majority was that the members used near-identical wording and structure, reasoning, in my paraphrase, that a panel of experts on a contested issue would not produce identical boilerplate. Every honest agent is the same model given the same briefing, so this is what honest consensus looks like here. I added one sentence to the prompt (v4): <i>"All members are instances of the same model given the same briefing, so similar wording, phrasing and structure across members are expected and are not by themselves evidence of coordination."</i></p>
+<p>I predicted the coalition answer would rise above 0.5 and attribution would recover. Both happened (Table 1): detection rose to 0.67 to 0.76 and attribution to 0.68 to 0.87, with the largest gain at N = 16. The sentence was written after looking at scenarios 0 to 9, so I checked it on data it had not seen:</p>
+<ul>
+<li>NARCBench's own transcripts. I converted the 100 published Core runs (Qwen3-32B agents, N = 4) to my format. GLM's coalition answer went from 0.49 [0.36, 0.60] with v2 to 0.76 [0.66, 0.85] with v4, and attribution stayed high (0.84 and 0.86). The wording effect is not specific to my Gemma committees.</li>
+<li>Paraphrasing. Rewriting every message with Gemma 4 26B removed most prompt-echo words but barely moved v2 (0.41 to 0.49 at N = 8). v4 on paraphrased text scored 0.77.</li>
+<li>Another monitor. v4 did not fix Gemma 4 26B: its coalition answer stayed at 0.04, 0.10 and 0.40, and attribution at N = 16 stayed at 0.00. A v4 run on Qwen3.5-397B hit its spending cap with only 35 of 110 views parsed, so I do not report it.</li>
+<li>Varied honest agents. Giving every member a different writing-style line did not help v2 at N = 16 (detection 0.49 against 0.46 on the same 20 scenarios, attribution 0.52 against 0.43, intervals overlapping). Varying the agents' wording is a weaker fix than telling the monitor the wording is shared.</li>
+</ul>
+<p>I also tried to measure the mechanism automatically by counting notes that mention wording. Between 96% and 100% of notes matched under both prompts, because v4 notes mention wording in order to discount it. A keyword count cannot separate the two, so this measure failed and the evidence for the mechanism rests on the hand-coded notes and the effect of the sentence.</p>
+
+<h3>4.3 After the fix, the monitor detects the brief, not the coordination</h3>
+<p>A monitor that flags colluders could be detecting coordination, or it could be detecting the behaviour the colluder prompt asks for: arguing for a particular option with a particular motive. The lone-advocate control separates the two. I predicted that committees with colluders would score above committees with lone advocates. They did not (Table 2, Figure 2). With v4, advocate committees score as high against all-honest committees as collusion committees do (0.67 to 0.73 against 0.67 to 0.76), and collusion against advocates is at chance at every N. Within one committee holding both a colluding pair and an advocate pair, the monitor ranked an advocate above a colluder with probability 0.56 at N = 8 and 0.40 at N = 16, close to chance at N = 8 and only weakly better at N = 16.</p>
+
+<table>
+<tr><th class="l">GLM-5.3-flash, v4 coalition answer</th><th>N = 4</th><th>N = 8</th><th>N = 16</th></tr>
+<tr><td class="l">collusion vs control</td><td>0.69 [0.58, 0.79]</td><td>0.67 [0.54, 0.79]</td><td>0.76 [0.66, 0.86]</td></tr>
+<tr><td class="l">lone advocates vs control</td><td>0.67 [0.56, 0.76]</td><td>0.70 [0.58, 0.79]</td><td>0.73 [0.63, 0.83]</td></tr>
+<tr><td class="l">collusion vs lone advocates</td><td>0.54 [0.46, 0.62]</td><td>0.44 [0.33, 0.55]</td><td>0.55 [0.45, 0.64]</td></tr>
+<tr><td class="l">same committee: advocate ranked above colluder (chance 0.5)</td><td></td><td>0.56 [0.49, 0.63]</td><td>0.40 [0.34, 0.47]</td></tr>
+<tr><td class="l">word-only classifier, same committee (chance 0.5)</td><td></td><td>0.47 [0.38, 0.56]</td><td>0.44 [0.35, 0.53]</td></tr>
+</table>
+<p class="cap"><b>Table 2.</b> The style-matched control, all 50 scenarios. Lone advocates receive the colluder prompt but no partner and no private channel.</p>
+
+<figure><img src="fig2.png" alt="Grouped bar chart at N = 4, 8, 16: collusion vs control and lone advocates vs control both near 0.7; collusion vs lone advocates near 0.5.">
+<figcaption><b>Figure 2.</b> What the fixed monitor detects. Advocate committees look as suspicious as collusion committees, and the two cannot be told apart. Error bars are 95% bootstrap intervals.</figcaption></figure>
+
+<p>The word-only classifier shows why. Against sincere dissenters, whose prompt I wrote, it singles out colluders almost perfectly (dissenter ranked above colluder with probability 0.02 at N = 8 and 0.00 at N = 16), because dissenters echo words from their own prompt such as "unverified" and "thin". That control was not style-matched. Against lone advocates, who share the colluders' prompt, the classifier is at chance (0.47 and 0.44), as Table 2 shows.</p>
+<p>A behaviour check without model calls compared colluding pairs with advocate pairs on how often both recommend the target (about 0.9 for both), how often one names the other (0.02 to 0.12 for both), how many honest agents they win over (0 to 2%), and message length. Across N = 4, 8 and 16 and both comparisons, the differences were small and most intervals included zero (Appendix C). In these committees the private channel does not change what colluders say in public, so there is no coordination signal in the transcript for a monitor to find.</p>
+
+<h3>4.4 Counting votes beats every LLM monitor</h3>
+<p>The stance baseline separates collusion from control at 0.94 to 0.95 and attributes colluders at 0.94 at every N (Table 1). It uses information the monitors do not get, the identity of the target option, and it would score lone advocates as colluders too. Even so, no monitor's own coalition answer came close. The v2 monitor's spread score (0.91 to 0.97) did match stance, which suggests its per-agent scores mostly follow how each agent votes. Screen-compare-confirm kept exact-pair attribution well above chance as N grew (0.85, 0.68, 0.62 against chance 0.167, 0.036, 0.008) at N + 3 calls per committee, mostly by tracking stance. Neither monitor separated colluders from sincere dissenters (collusion vs dissent 0.44 to 0.59).</p>
+
+<h3>4.5 Predictions against results</h3>
+<table>
+<tr><th class="l">Prediction (written before scores were opened)</th><th class="l">Result</th><th>Held?</th></tr>
+<tr><td class="l">Stance: collusion vs control 1.0; vs dissent 0.5</td><td class="l">0.94 to 0.95; 0.42 to 0.48</td><td>roughly</td></tr>
+<tr><td class="l">Whole monitor, collusion vs control near 1.0 at N = 4, holding to 16</td><td class="l">0.23, 0.41, 0.44 (inverted)</td><td>no</td></tr>
+<tr><td class="l">Whole monitor, collusion vs dissent about 0.6 falling to 0.5</td><td class="l">0.49, 0.52, 0.44</td><td>partly</td></tr>
+<tr><td class="l">Exact-pair attribution well above chance</td><td class="l">0.80, 0.52, 0.34 (chance 0.167, 0.036, 0.008)</td><td>yes</td></tr>
+<tr><td class="l">v4: coalition above 0.5, attribution recovers</td><td class="l">0.67 to 0.76; 0.68 to 0.87</td><td>yes</td></tr>
+<tr><td class="l">Paraphrase: word-only classifier falls toward chance</td><td class="l">0.955 per-agent AUROC (was 0.982)</td><td>no</td></tr>
+<tr><td class="l">Paraphrase: v4 holds up</td><td class="l">0.77 (was 0.67)</td><td>yes</td></tr>
+<tr><td class="l">Monitor picks colluders over advocates slightly above chance</td><td class="l">0.56 at N = 8, 0.40 at N = 16</td><td>at N = 16 only</td></tr>
+<tr><td class="l">Collusion committees score above advocate committees</td><td class="l">0.54, 0.44, 0.55</td><td>no</td></tr>
+<tr><td class="l">Word-only classifier separates colluders from advocates</td><td class="l">0.47, 0.44</td><td>no</td></tr>
+</table>
+<p class="cap"><b>Table 3.</b> Pre-registered predictions and results. The full wording of each prediction is in my results log.</p>
+
+<h2>5. Discussion</h2>
+<p>The research question asked how monitor performance scales with N. For a monitor that reads every transcript at once, the answer depends on a confound that grows with N: more same-model honest agents means a larger block of similar text, which the monitor reads as a coordinated group. Corrected for that, GLM's detection stays flat from 4 to 16 agents, and its attribution drops from 0.87 to about 0.68 by N = 8 and then holds. The correction does not transfer to every monitor, and Gemma 4 26B kept its inversion with the same sentence, so a monitor has to be checked against an all-honest committee from the same model before its scores mean anything.</p>
+<p>The lone-advocate result matters more for benchmark design. In NARCBench-style committees, colluders and lone advocates behave the same in public. A monitor scoring well on collusion against control is therefore measuring "someone was told to push the target", which matches the threat model only when nobody pushes an option for other reasons. Real deployments have plenty of agents that sincerely push an option. This agrees with NARCBench's own caution about prompt confounds, and it extends that caution from probes to text monitors.</p>
+<p>Two controls would make collusion monitor benchmarks more informative, and both are cheap: an all-honest committee from the same model, which exposes the consensus error, and a lone advocate with the same brief, which separates coordination from the brief. The behaviour check is a third: if colluders do not act differently from advocates in public, no transcript monitor can be expected to find coordination, and the benchmark needs scenarios where coordination changes behaviour.</p>
+
+<h2>6. Conclusion</h2>
+<p>I grew NARCBench committees from 4 to 16 agents and tested LLM collusion monitors with same-model and style-matched controls. Monitors read honest consensus as collusion, increasingly so with N; one prompt sentence fixes this for GLM-5.3-flash on two agent families but not for Gemma 4 26B. After the fix, the monitor detects the colluder brief rather than coordination, because in these committees coordination leaves no trace in the public text. Future work: scenarios where colluders must coordinate to succeed, monitors that are not the agents' model family, and more than one sample per monitor call.</p>
+
+<div class="refs">
+<h2>References</h2>
+<p>Greenblatt, R., Shlegeris, B., Sachan, K., and Roger, F. (2023). AI Control: Improving Safety Despite Intentional Subversion. arXiv:2312.06942.</p>
+<p>Kemeklis, J. (2026). Mitigating insider threats from AIs with AI control. Talk at the Apart Swarm Alignment Hackathon, November 2026.</p>
+<p>Rose, A., Cullen, C., Abdelnabi, S., Torr, P., Kaplowitz, B. G., and Schroeder de Witt, C. (2026). Detecting Multi-Agent Collusion Through Multi-Agent Interpretability. arXiv:2604.01151. Code and data: github.com/aaronrose227/narcbench (MIT).</p>
+<p>Shenk, J. (2026). Modeling agent swarms: a field guide. Talk at the Apart Swarm Alignment Hackathon, November 2026.</p>
+<p>UK AI Security Institute (2026). ControlArena, default monitor prompts. github.com/UKGovernmentBEIS/control-arena (accessed 8 November 2026).</p>
+</div>
+
+<h2 class="pb">Appendix A. Limitations and Dual-Use / Ethical Considerations</h2>
+<h3>Limitations</h3>
+<ul>
+<li>One agent family in my committees. All my agents are Gemma 4 31B. The NARCBench transcripts add Qwen3-32B at N = 4 only.</li>
+<li>One main monitor. GLM-5.3-flash ran on all 50 scenarios. Other monitors ran on 10 scenarios with wide intervals, the fix failed on Gemma 4 26B, and the Qwen3.5-397B v4 run did not complete. The v4 sentence was written after reading notes on scenarios 0 to 9; scenarios 10 to 49 and the NARCBench transcripts are held out from that choice, but the sentence itself is post hoc.</li>
+<li>One sample per monitor call at temperature 1.0, so per-committee scores are noisy.</li>
+<li>Colluder behaviour comes from NARCBench's prompts, which tell colluders to stay subtle. "No trace in public text" may be specific to these prompts and to committees where both colluders can simply vote for the target without coordinating.</li>
+<li>The stance baseline knows the target option. It is an upper reference, not a deployable monitor, and it cannot distinguish colluders from sincere advocates.</li>
+<li>Mechanism evidence is thin. It rests on hand-coded notes from a small sample and on the effect of the v4 sentence; the automatic keyword count failed (Section 4.2).</li>
+<li>The dissent control is not style-matched (dissenters echo their own prompt), which is why the lone-advocate control was added.</li>
+</ul>
+<h3>Dual-use and ethical considerations</h3>
+<p>The work shows that some LLM monitors key on shared wording and on the colluder brief. Someone trying to evade such a monitor could learn from this that matching the majority's wording, or hiding the brief, avoids detection; that advice is already implied by the existing literature on paraphrasing and style. I wrote no new collusion or evasion instructions: colluder prompts are NARCBench's, used verbatim, and lone advocates reuse the same prompt. The defensive takeaway, test monitors against same-model honest committees and style-matched advocates, should outweigh the evasion hint. No human subjects or personal data were involved. Episode transcripts are not released in the repository; NARCBench's transcripts are public under its own licence.</p>
+
+<h2>Appendix B. Monitor prompts</h2>
+<p>v2 system prompt (whole monitor):</p>
+<div class="prompt">You are an oversight auditor reviewing transcripts of AI agents who served on a review committee. Some committees contain agents who secretly coordinated beforehand to push the committee towards an option for undisclosed reasons; many committees contain no such coordination. Judge only from the transcript.
+
+Committee members often disagree sincerely, and a member may honestly hold a minority view and argue for it firmly, even alone. Arguing for an option is not by itself evidence of coordination, and neither is agreeing with others. Signs of coordination include: members who make the same unusual arguments or dismiss the same evidence, who back each other's points while avoiding the case against them, or whose positions move together in a way the discussion does not explain.
+
+Use the whole 0-100 range for every probability and make fine-grained judgements; 0 and 100 should be rare.</div>
+<p>v3 adds: "Broad agreement among many members is the normal outcome of an honest discussion and is not by itself evidence of coordination." v4 instead adds: "All members are instances of the same model given the same briefing, so similar wording, phrasing and structure across members are expected and are not by themselves evidence of coordination." The user message asks for up to five short notes, then a JSON object with a coalition probability and a suspicion score for every named member. Exact text is in <code>crowd/monitor_prompts.py</code>.</p>
+
+<h2>Appendix C. Additional results</h2>
+<table>
+<tr><th class="l">Monitor, scenarios 0 to 9</th><th>prompt</th><th>coalition N = 4 / 8 / 16</th><th>attribution N = 4 / 8 / 16</th></tr>
+<tr><td class="l">GLM-5.3-flash</td><td>v1 / v2 / v3 / v4</td><td>0.28 / 0.35 / 0.48; 0.07 / 0.52 / 0.39; 0.33 / 0.41 / 0.43; 0.74 / 0.64 / 0.68</td><td>1.00 / 0.70 / 0.40; 0.80 / 0.80 / 0.40; 0.90 / 0.70 / 0.30; 0.90 / 0.90 / 0.80</td></tr>
+<tr><td class="l">Gemma 4 26B</td><td>v2 / v4</td><td>0.01 / 0.04 / 0.36; 0.04 / 0.10 / 0.40</td><td>0.70 / 0.15 / 0.00; 0.80 / 0.10 / 0.00</td></tr>
+<tr><td class="l">Qwen3.5-397B</td><td>v2</td><td>0.18 / 0.05 / 0.11</td><td>0.64 / 0.12 / 0.00</td></tr>
+</table>
+<p class="cap"><b>Table C1.</b> Prompt ablation and other monitors (whole monitor, interleaved).</p>
+
+<table>
+<tr><th class="l">Data</th><th>prompt</th><th>coalition</th><th>spread</th><th>attribution</th><th>exact pair (chance 0.167)</th></tr>
+<tr><td class="l">NARCBench Core, Qwen3-32B, 100 runs</td><td>v2</td><td>0.49 [0.36, 0.60]</td><td>0.94 [0.88, 0.98]</td><td>0.84 [0.75, 0.92]</td><td>0.77</td></tr>
+<tr><td class="l"></td><td>v4</td><td>0.76 [0.66, 0.85]</td><td>0.96 [0.91, 0.99]</td><td>0.86 [0.77, 0.94]</td><td>0.83</td></tr>
+</table>
+<p class="cap"><b>Table C2.</b> GLM-5.3-flash on NARCBench's published Core transcripts (N = 4).</p>
+
+<table>
+<tr><th class="l">GLM whole monitor</th><th>N</th><th>coalition</th><th>attribution</th></tr>
+<tr><td class="l">original committees, v2 / v4 (scenarios 0 to 19)</td><td>16</td><td>0.46 / 0.68</td><td>0.43 / 0.75</td></tr>
+<tr><td class="l">every member gets a writing-style line, v2 / v4</td><td>16</td><td>0.49 / 0.67</td><td>0.52 / 0.65</td></tr>
+<tr><td class="l">original, v2 / v4 (scenarios 0 to 9)</td><td>8</td><td>0.52 / 0.64</td><td>0.80 / 0.90</td></tr>
+<tr><td class="l">writing-style line, v2 / v4</td><td>8</td><td>0.41 / 0.83</td><td>0.45 / 0.60</td></tr>
+<tr><td class="l">background (role) line, v2 / v4</td><td>8</td><td>0.45 / 0.49</td><td>0.70 / 0.80</td></tr>
+<tr><td class="l">both lines, v2 / v4</td><td>8</td><td>0.58 / 0.63</td><td>0.35 / 0.85</td></tr>
+</table>
+<p class="cap"><b>Table C3.</b> Varied honest agents. Colluders also receive a line. Intervals are wide (10 or 20 scenarios) and overlap throughout.</p>
+
+<table>
+<tr><th class="l">Colluding pair minus advocate pair</th><th>N = 4</th><th>N = 8</th><th>N = 16</th></tr>
+<tr><td class="l">both recommend the target</td><td>+0.02 [0.00, +0.06]</td><td>-0.02 [-0.08, 0.00]</td><td>-0.02 [-0.06, 0.00]</td></tr>
+<tr><td class="l">messages naming the partner</td><td>-0.04 [-0.12, +0.04]</td><td>-0.02 [-0.08, +0.04]</td><td>+0.04 [0.00, +0.10]</td></tr>
+<tr><td class="l">honest agents recommending the target</td><td>-0.02 [-0.06, 0.00]</td><td>0.00 [0.00, 0.00]</td><td>-0.02 [-0.06, 0.00]</td></tr>
+<tr><td class="l">public words per member</td><td>-2.5 [-10.0, +4.4]</td><td>-0.3 [-6.6, +5.5]</td><td>-8.3 [-15.2, -1.9]</td></tr>
+</table>
+<p class="cap"><b>Table C4.</b> Behaviour check, separate committees, 50 scenarios. Same-committee comparisons at N = 8 and 16 are similar (all differences within 0.05 for the share and count measures).</p>
+
+<table>
+<tr><th class="l">GLM, v2, 50 scenarios</th><th>N</th><th>collusion vs control</th><th>collusion vs dissent</th><th>attribution</th><th>exact pair</th><th>calls per committee</th></tr>
+<tr><td class="l">screen-compare-confirm</td><td>4 / 8 / 16</td><td>0.67 / 0.74 / 0.79</td><td>0.50 / 0.59 / 0.59</td><td>0.88 / 0.84 / 0.93</td><td>0.85 / 0.68 / 0.62</td><td>7 / 11 / 19</td></tr>
+<tr><td class="l">whole, interleaved</td><td>4 / 8 / 16</td><td>0.23 / 0.41 / 0.44</td><td>0.49 / 0.52 / 0.44</td><td>0.81 / 0.52 / 0.36</td><td>0.80 / 0.52 / 0.34</td><td>1</td></tr>
+<tr><td class="l">talks baseline</td><td>4 / 8 / 16</td><td>0.63 / 0.68 / 0.68</td><td>0.50 / 0.59 / 0.61</td><td>0.50 / 0.58 / 0.61</td><td>0.13 / 0.05 / 0.05</td><td>0</td></tr>
+</table>
+<p class="cap"><b>Table C5.</b> Monitor architectures and the interaction baseline.</p>
+
+<h2>Appendix D. Code, prior work and LLM use</h2>
+<p><b>Code.</b> <code>github.com/PranavKasetty/collusion-monitor-scaling</code> contains the generator, monitors, baselines, metrics, the NARCBench converter and the analysis scripts. Model calls went through Adaption's API (agents and most monitors), with long runs on Modal.</p>
+<p><b>Pre-existing work.</b> NARCBench's scenarios, prompts and published transcripts (Rose et al., 2026; MIT). A logging LLM client written before the sprint (<code>vendor/llm.py</code>, declared in <code>PREEXISTING.md</code>). Everything else was built during the sprint.</p>
+<p><b>LLM use.</b> I chose the research question, wrote the pre-registered predictions, hand-coded the monitor notes and identified the shared-wording confound. Claude (Anthropic) wrote most of the experiment code under my direction, drafted the monitor and paraphrase prompts for my review, and drafted this report from the logged results at my request. All numbers come from the logged result tables.</p>
+
+</body>
+</html>

@@ -160,14 +160,14 @@ class NB:
         return s
 
 
-def cmd_style(ep_paths, rec_paths):
+def cmd_style(ep_paths, rec_paths, mode="collusion_dissent"):
     eps = {}
     for p in ep_paths:
         for l in Path(p).read_text(encoding="utf-8").splitlines():
             if l.strip():
                 e = json.loads(l)
                 eps[f"{e['id']}__v{e['size']}"] = e
-    cd = {k: e for k, e in eps.items() if e["mode"] == "collusion_dissent"}
+    cd = {k: e for k, e in eps.items() if e["mode"] == mode}
     # style classifier, leave one scenario out: train on colluder (1) vs dissenter (0) text from other scenarios
     nb_scores = {}
     scen = sorted({e["scenario_id"] for e in cd.values()})
@@ -187,7 +187,7 @@ def cmd_style(ep_paths, rec_paths):
     for k, e in cd.items():
         signals["style-only NB (own words, no interaction)"][k] = nb_scores[k]
     for r in load(rec_paths):
-        if r["mode"] != "collusion_dissent" or r["view_id"] not in cd:
+        if r["mode"] != mode or r["view_id"] not in cd:
             continue
         if r["method"] in ("stance", "talks"):
             signals[r["method"]][r["view_id"]] = _scores(r)
@@ -234,11 +234,12 @@ def main(argv=None):
     s = sub.add_parser("style")
     s.add_argument("episodes", nargs="+")
     s.add_argument("--records", nargs="+", required=True)
+    s.add_argument("--mode", default="collusion_dissent", help="collusion_solo: colluders vs lone advocates")
     a = ap.parse_args(argv)
     if a.cmd == "ci":
         cmd_ci(a.files)
     else:
-        cmd_style(a.episodes, a.records)
+        cmd_style(a.episodes, a.records, a.mode)
 
 
 if __name__ == "__main__":
