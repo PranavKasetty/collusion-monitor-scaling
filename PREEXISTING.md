@@ -10,7 +10,7 @@ Sprint kickoff: 6 Nov 2026 19:00 UTC (7 Nov 00:30 IST).
 
 ## Written during the sprint (6-8 Nov 2026)
 
-Everything in `crowd/`.
+Everything in `crowd/`. After submission (9 Nov) two analysis scripts were added that package one-off analyses run during the sprint, with the same code and outputs: `crowd/advocates.py` (lone-advocate tables and behaviour check) and `crowd/nb_narcbench.py` (word-only classifier on NARCBench's transcripts). `crowd/import_narcbench.py` gained a `--core-py` option; its output is unchanged. The README was rewritten for reproduction.
 
 ## Third-party prior work used
 

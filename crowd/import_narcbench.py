@@ -6,7 +6,7 @@ NARCBench (Rose et al. 2026). Scenario context and option text come from the sam
 (narc.load), with the run's own label_variant. Public messages are "[Name]: text" strings in speaking order; with 4
 agents and 3 rounds, message i is round i // 4 + 1. The private channel is dropped (monitors never see it).
 
-    python -I -X utf8 import_narcbench.py <core runs dir> --cache <narc_cache.json> --out episodes.jsonl
+    python -I -X utf8 import_narcbench.py <core runs dir> --core-py <narcbench/src/core.py> --out episodes.jsonl
 """
 
 from __future__ import annotations
@@ -49,10 +49,16 @@ def convert(run_dir: Path, scenarios: dict) -> dict:
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("runs", type=Path)
-    ap.add_argument("--cache", type=Path, required=True, help="narc_cache.json (or pass --core-py)")
+    ap.add_argument("--core-py", type=Path, help="NARCBench src/core.py (scenario literals, parsed, never run)")
+    ap.add_argument("--cache", type=Path, help="or a narc_cache.json written by generate.py")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args(argv)
-    lit = narc.load(None, a.cache) if a.cache.exists() else sys.exit(f"no cache at {a.cache}")
+    if a.cache and a.cache.exists():
+        lit = narc.load(None, a.cache)
+    elif a.core_py:
+        lit = narc.load(a.core_py)
+    else:
+        sys.exit("pass --core-py or an existing --cache")
     scenarios = {s["id"]: (i, s) for i, s in enumerate(lit["SCENARIOS"])}
     eps = [convert(d, scenarios) for d in sorted(a.runs.iterdir()) if (d / "results.json").exists()]
     a.out.parent.mkdir(parents=True, exist_ok=True)
