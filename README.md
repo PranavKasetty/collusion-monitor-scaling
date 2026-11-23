@@ -19,7 +19,12 @@ Agents are Gemma 4 31B. Monitors are zero-shot LLMs (mainly GLM-5.3-flash) and n
   transcripts (0.49 to 0.76). It does not fix Gemma 4 26B.
 - After the fix, collusion committees and lone-advocate committees cannot be told apart (AUROC 0.44 to 0.55), and
   colluders behave like advocates in public. The monitor detects the colluder brief, not coordination.
-- Counting votes for the target option (stance baseline) scores 0.94 and beats every LLM monitor.
+- Under an audit budget the monitor looks worse than its AUROC suggests: if an overseer may flag 5% of honest
+  committees, the fixed (v4) monitor catches 6%, 0% and 4% of collusion committees at N = 4, 8 and 16 (report Table 3).
+
+**Correction (20 Nov 2026).** An earlier version of this README, and the submitted report, said a vote count beat every
+LLM monitor. That count is told which option the colluders push and the monitors are not, so the comparison was unfair
+and the claim is withdrawn. Details in [`CORRECTIONS.md`](CORRECTIONS.md).
 
 ## Repository layout
 
