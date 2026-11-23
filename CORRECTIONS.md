@@ -3,8 +3,8 @@
 ## 20 Nov 2026: the vote-count comparison is withdrawn
 
 **What the submitted report says.** The abstract ("Simply counting votes for the colluders' preferred option beat every AI
-monitor"), section 4.4 ("Counting votes beats every LLM monitor") and the discussion ("no LLM monitor beats a vote count
-that knows the target option") present the stance baseline as outperforming the LLM monitors. This README said the same.
+monitor"), section 4.4 ("Counting votes beats every LLM monitor") and the introduction's contribution 3 ("no LLM monitor
+beats a vote count that knows the target option") present the stance baseline as outperforming the LLM monitors. This README said the same.
 
 **Why it is wrong.** The stance baseline scores each agent by whether its final recommendation names the colluders' target
 option. It is told the target; the monitors are not. The report states this in its method and limitations sections, but the
